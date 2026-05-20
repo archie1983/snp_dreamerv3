@@ -823,9 +823,9 @@ class AI2ThorBase(embodied.Env):
                                                  "IMAGE_HEIGHT": 64,
                                                  "GRID_SIZE": self.grid_size,
                                                  "GPU_DEVICE": 1,
-                                                 # "RENDER_DEPTH": False,
-                                                 # "RENDER_INSTANCE_SEGMENTATION": False,
-                                                 # "RENDER_IMAGE": True
+                                                 "RENDER_DEPTH": False,
+                                                 "RENDER_INSTANCE_SEGMENTATION": False,
+                                                 "RENDER_IMAGE": True
                                                  # "IMAGE_WIDTH": 64,
                                                  # "IMAGE_HEIGHT": 64
                                                  })
