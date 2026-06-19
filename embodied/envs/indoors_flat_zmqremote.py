@@ -37,13 +37,6 @@ class Roomcentre(embodied.Wrapper):
         reward = 0.0
         obs['reward'] = np.float32(reward)
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
-            episode_stats = {
-                "final_reward": str(obs['reward']),
-            }
-            with open(self.logdir + "/episode_data.jsonl", "a") as f:
-                f.write(json.dumps(episode_stats) + "\n")
-
         # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
         # so perhaps it can stay for now.
         #obs.pop("distance_left")
