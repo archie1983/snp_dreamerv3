@@ -214,10 +214,17 @@ class AI2ThorBase(embodied.Env):
             action_cmd = {"command": "ACT", "action_bits": {'action': int(action['action']), 'reset': bool(action['reset'])}}
             print("AE1: ", action_cmd, " ", self._step)
 
-            self.socket.send_pyobj(action_cmd)
+            try:
+                self.socket.send_pyobj(action_cmd)
+            except zmq.ZMQError as e:
+                print(f"Error sending data: {e}")
+
 
             # 1. Receive the image data
-            data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
+            try:
+                data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
+            except zmq.ZMQError as e:
+                print(f"Error receiving data: {e}")
 
             if (data['module'] == 'snp'):
                 obs = self.unpack_remote_obs(data)
