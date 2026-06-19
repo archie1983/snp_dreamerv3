@@ -137,6 +137,7 @@ class AI2ThorBase(embodied.Env):
         # Dreamer stuff
         self._size = size
         self.isFirst = False
+        self._step = 0
 
         self._obs_space = self.obs_space
 
@@ -221,7 +222,7 @@ class AI2ThorBase(embodied.Env):
             if (data['module'] == 'snp'):
                 obs = self.unpack_remote_obs(data)
 
-            print(f"-> Action metadata: {obs}")
+            print(f"-> Action metadata: {data}")
         except Exception as e:
             print(f"An error occurred3: {e}")
             #self.close_client_socket()
