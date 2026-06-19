@@ -162,7 +162,7 @@ class AI2ThorBase(embodied.Env):
         if (data['module'] == 'snp' and data['cmd'] == 'handshake'):
             print(" ...Handshake received")
 
-        self.socket.send_pyobj({"module": "snp", "cmd": "handshake2"})
+        #self.socket.send_pyobj({"module": "snp", "cmd": "handshake2"})
 
     def run(self):
         while self.need_run:
