@@ -150,24 +150,24 @@ class AI2ThorBase(embodied.Env):
         self.env_retired = False  # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
 
         print(f"DreamerV3 navigator server running on port {self.port}, waiting for first handshake...")
-
-        print("a: ", actions, " # ",
-                 "l1: ", logdir, " # ",
-                 "r: ", repeat, " # ",
-                 "s: ", size, " # ",
-                 "l2: ", logs, " # ",
-                 "hs1: ", hab_space, " # ",
-                 "hs2: ", hab_set, " # ",
-                 "pph: ", places_per_hab, " # ",
-                 "gs: ", grid_size, " # ",
-                 "rce: ", reward_close_enough, " # ",
-                 "pce: ", plan_close_enough, " # ",
-                 "ei: ", env_index, " # ",
-                 "et: ", env_type, " # ",
-                 "at: ", agent_type, " # ",
-                 "s1: ", server_ip, " # ",
-                 "s2: ", server_port, " # ",
-                 "e: ", encoding)
+        traceback.print_stack()
+        # print("a: ", actions, " # ",
+        #          "l1: ", logdir, " # ",
+        #          "r: ", repeat, " # ",
+        #          "s: ", size, " # ",
+        #          "l2: ", logs, " # ",
+        #          "hs1: ", hab_space, " # ",
+        #          "hs2: ", hab_set, " # ",
+        #          "pph: ", places_per_hab, " # ",
+        #          "gs: ", grid_size, " # ",
+        #          "rce: ", reward_close_enough, " # ",
+        #          "pce: ", plan_close_enough, " # ",
+        #          "ei: ", env_index, " # ",
+        #          "et: ", env_type, " # ",
+        #          "at: ", agent_type, " # ",
+        #          "s1: ", server_ip, " # ",
+        #          "s2: ", server_port, " # ",
+        #          "e: ", encoding)
 
         data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
         # we want it to block here until client has connected and only then to continue on and start receiving observations
