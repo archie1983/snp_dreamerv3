@@ -219,8 +219,7 @@ class AI2ThorBase(embodied.Env):
             except zmq.ZMQError as e:
                 print(f"Error sending data: {e}")
 
-
-            # 1. Receive the image data
+            # Receive the image data
             try:
                 data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
             except zmq.ZMQError as e:
@@ -229,7 +228,7 @@ class AI2ThorBase(embodied.Env):
             if (data['module'] == 'snp'):
                 obs = self.unpack_remote_obs(data)
 
-            print(f"-> Action metadata: {data}")
+            #print(f"-> Action metadata: {data}")
         except Exception as e:
             print(f"An error occurred3: {e}")
             #self.close_client_socket()
