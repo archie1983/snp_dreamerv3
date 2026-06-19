@@ -154,6 +154,7 @@ class AI2ThorBase(embodied.Env):
         self.socket = self.context.socket(zmq.REP)  # Changed from PULL to REP
         self.socket.bind(f"tcp://*:{self.port}")
         self.need_run = True
+        self.env_retired = False  # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
 
         print(f"DreamerV3 navigator server running on port {self.port}, waiting for first handshake...")
         data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
