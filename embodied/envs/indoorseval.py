@@ -9,8 +9,10 @@ class IndoorsEval(embodied.Wrapper):
     module, cls = {
         'roomcentre': 'indoors_flat:Roomcentre',
         'door': 'indoors_flat:Door',
-        'remoteroomcentre': 'indoors_flat_remote:Roomcentre',
-        'remotedoor': 'indoors_flat_remote:Door',
+#        'remoteroomcentre': 'indoors_flat_remote:Roomcentre',
+#        'remotedoor': 'indoors_flat_remote:Door',
+        'remoteroomcentre': 'indoors_flat_zmqremote:Roomcentre',
+        'remotedoor': 'indoors_flat_zmqremote:Door',
     }[task].split(':')
     module = importlib.import_module(f'.{module}', __package__)
     cls = getattr(module, cls)

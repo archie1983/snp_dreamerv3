@@ -1,14 +1,15 @@
-import logging, threading, elements, random, socket, cv2, embodied, traceback
+import logging, elements, cv2, embodied, traceback, threading
 import numpy as np
 from ai2_thor_model_training.ae_utils import (action_mapping,
                                               action_to_index, index_to_action, inverted_action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
                                               get_all_objects_of_type, is_point_inside_room_ground_truth,
-                                              create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType, recv_data, send_data)
+                                              create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType)
 
 from shapely.geometry import Point
 import json, zmq
+from PIL import Image
 
 np.float = float
 np.int = int
@@ -153,7 +154,14 @@ class AI2ThorBase(embodied.Env):
         self.socket.bind(f"tcp://*:{self.port}")
         self.need_run = True
 
-        print(f"DreamerV3 navigator server running on port {self.port}, waiting for images...")
+        print(f"DreamerV3 navigator server running on port {self.port}, waiting for first handshake...")
+        data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
+        # we want it to block here until client has connected and only then to continue on and start receiving observations
+
+        if (data['module'] == 'snp' and data['cmd'] == 'handshake'):
+            print(" ...Handshake received")
+
+        self.socket.send_pyobj({"module": "snp", "cmd": "handshake2"})
 
     def run(self):
         while self.need_run:
@@ -161,22 +169,24 @@ class AI2ThorBase(embodied.Env):
             data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
 
             if (data['module'] == 'snp'):
-                response = self.receive_remote_obs(data)
+                response = self.unpack_remote_obs(data)
 
             self.socket.send_pyobj(response)
 
-    def receive_remote_obs(self, data):
-        received_array = np.frombuffer(data['bytes'], dtype=data['dtype'])
+    def unpack_remote_obs(self, data):
+        received_array = np.frombuffer(data['pov']['bytes'], dtype=data['pov']['dtype'])
+        received_img = received_array.reshape(data['pov']['shape'])[0]
+        pil_image = Image.fromarray(received_img)
 
         obs = dict(
             reward = 0.0,
-            pov = self._current_image,
-            is_first = np.bool(self.isFirst),
-            is_last = np.bool(self._done),
-            is_terminal = np.bool(self._done),
+            pov = pil_image,
+            is_first = np.bool(data['is_first']),
+            is_last = np.bool(data['is_last']),
+            is_terminal = np.bool(data['is_last']),
         )
 
-        received_img = received_array.reshape(data['shape'])[0]
+        return obs
 
     @property
     def obs_space(self):
@@ -203,27 +213,15 @@ class AI2ThorBase(embodied.Env):
             action_cmd = {"command": "ACT", "action_bits": {'action': int(action['action']), 'reset': bool(action['reset'])}}
             print("AE1: ", action_cmd, " ", self._step)
 
-            # Send action
-            send_data(self.client_socket, json.dumps(action_cmd).encode(self.encoding))
+            self.socket.send_pyobj(action_cmd)
 
-            # Receive Metadata
-            metadata_bytes = recv_data(self.client_socket)
-            if not metadata_bytes: raise Exception("Null received in response to ACT")
-            metadata = json.loads(metadata_bytes.decode(self.encoding))
+            # 1. Receive the image data
+            data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
 
-            # Receive Frame (JPEG bytes)
-            frame_bytes = recv_data(self.client_socket)
-            if not frame_bytes: raise Exception("Image transfer from client failed")
+            if (data['module'] == 'snp'):
+                obs = self.unpack_remote_obs(data)
 
-            # Convert JPEG bytes back to numpy array (frame)
-            np_array = np.frombuffer(frame_bytes, np.uint8)
-            frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
-
-            obs = metadata['obs']
-            # Display results on the Jetson
             print(f"-> Action metadata: {obs}")
-            obs['pov'] = frame
-            episode_stats = metadata['eps']
         except Exception as e:
             print(f"An error occurred3: {e}")
             #self.close_client_socket()
