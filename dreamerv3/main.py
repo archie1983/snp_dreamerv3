@@ -136,7 +136,7 @@ def main(argv=None):
 ##
 def make_agent(config):
   from .agent import Agent
-  config.update(fake_run=True)
+  config['fake_run'] = True
   env = make_env(config, 0)
   notlog = lambda k: not k.startswith('log/')
   obs_space = {k: v for k, v in env.obs_space.items() if notlog(k)}
