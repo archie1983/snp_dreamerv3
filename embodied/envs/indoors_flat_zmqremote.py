@@ -148,12 +148,12 @@ class AI2ThorBase(embodied.Env):
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.REP)  # Changed from PULL to REP
             self.socket.bind(f"tcp://*:{self.port}")
+            print(f"DreamerV3 navigator server running on port {self.port}, waiting for first handshake...")
         self.need_run = True
         self.env_retired = False  # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
 
-        print(f"DreamerV3 navigator server running on port {self.port}, waiting for first handshake...")
         #traceback.print_stack()
-        print("FAKE RUN: ", fake_run)
+        #print("FAKE RUN: ", fake_run)
         # print("a: ", actions, " # ",
         #          "l1: ", logdir, " # ",
         #          "r: ", repeat, " # ",
@@ -174,10 +174,9 @@ class AI2ThorBase(embodied.Env):
 
         if not fake_run:
             data = self.socket.recv_pyobj()  # This BLOCKS until a request arrives
-        # we want it to block here until client has connected and only then to continue on and start receiving observations
-
-        if (data['module'] == 'snp' and data['cmd'] == 'handshake'):
-            print(" ...Handshake received")
+            # we want it to block here until client has connected and only then to continue on and start receiving observations
+            if (data['module'] == 'snp' and data['cmd'] == 'handshake'):
+                print(" ...Handshake received")
 
         #self.socket.send_pyobj({"module": "snp", "cmd": "handshake2"})
 
