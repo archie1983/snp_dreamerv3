@@ -241,7 +241,13 @@ class AI2ThorBase(embodied.Env):
             except zmq.ZMQError as e:
                 print(f"Error receiving data: {e}")
 
-            if (data['module'] == 'snp'):
+            # IF we receive a handshake instead of an obs here, then we have disconnected before and client is re-connecting
+            # now, so what we do is aclear the handshake and then re-send the same action as before recursively.
+            if (data['module'] == 'snp' and data['cmd'] == 'handshake'):
+                print(" ...Handshake received")
+                return self.step(action)
+            else:
+                # otherwise normal processing of an obs
                 obs = self.unpack_remote_obs(data)
 
             #print(f"-> Action metadata: {data}")
