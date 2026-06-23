@@ -201,6 +201,8 @@ class AI2ThorBase(embodied.Env):
             is_first = np.bool(data['is_first']),
             is_last = np.bool(data['is_last']),
             is_terminal = np.bool(data['is_last']),
+            doorvis = np.float32(0),
+            newroom = np.float32(0)
         )
 
         return obs
@@ -212,7 +214,9 @@ class AI2ThorBase(embodied.Env):
             'reward': elements.Space(np.float32),
             'is_first': elements.Space(bool),
             'is_last': elements.Space(bool),
-            'is_terminal': elements.Space(bool)
+            'is_terminal': elements.Space(bool),
+            'doorvis': elements.Space(np.float32),
+            'newroom': elements.Space(np.float32),
         }
 
     @property
@@ -272,7 +276,9 @@ class AI2ThorBase(embodied.Env):
             'reward': np.float32(0.0), # reward will not be required because we will only be evaluatuing
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
-            'is_terminal': obs['is_terminal']
+            'is_terminal': obs['is_terminal'],
+            'doorvis': obs['doorvis'],
+            'newroom': obs['newroom']
         }
         for key, value in obs.items():
             space = self._obs_space[key]
