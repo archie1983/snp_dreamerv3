@@ -67,6 +67,7 @@ class Driver:
       step, episode = self._step(policy, step, episode)
 
   def _step(self, policy, step, episode):
+    #t1 = time.time()
     # AE: Here we have a collection of actions in something like this: {'action': array([0, 2], dtype=int32), 'reset': array([False, False])}
     # The size of the action array in the dictionary is 2 here because in this case we had 2 AI2-Thor environments
     # running- each providing an observation which lead to an action. This collection of actions was acquired in this
@@ -86,6 +87,7 @@ class Driver:
     #print("AE, driver.py: acts2[0]['action']: ", acts[0]['action'])
     # AE: Now we pass each action to the environment that it is meant to go to. The enviornment will process it and
     # provide an observation as a feedback.
+    #t2 = time.time()
     if self.parallel:
       [pipe.send(('step', act)) for pipe, act in zip(self.pipes, acts)]
       obs = [self._receive(pipe) for pipe in self.pipes]
@@ -96,6 +98,7 @@ class Driver:
       for i in range(self.length):
         #print("ENV ", i, " retired = ", self.envs[i].env_retired)
         self.driver_retired = self.driver_retired and self.envs[i].env_retired
+    #t3 = time.time()
     #print("AE, driver.py: obs[0].keys(): ", obs[0].keys())
     # AE: As a reminder, the keys of observation for our case are: ['image', 'reward', 'is_first', 'is_last', 'is_terminal']
     # Now we
@@ -138,6 +141,8 @@ class Driver:
       [fn(trn, i, **self.kwargs) for fn in self.callbacks]
     step += len(obs['is_first'])
     episode += obs['is_last'].sum()
+    #t4 = time.time()
+    #print("AE Tt = ", round(t4-t1,4), " Te = ", round(t3-t2,4))
     return step, episode
 
   def _mask(self, value, mask):

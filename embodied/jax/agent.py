@@ -255,6 +255,16 @@ class Agent(embodied.Agent):
     carry = self._split(internal.to_local(carry))
 
     finite = outs.pop('finite', {})
+    # AE: So what actually happens here:
+    # We have a collection called finite, which looks a bit like this:
+    # {'act/action': array([ True,  True,  True]), 'carry/[1]/deter': array([ True,  True,  True]), 'carry/[1]/stoch': array([ True,  True,  True]), 'carry/[2]/deter': array([ True,  True,  True]), 'carry/[2]/stoch': array([ True,  True,  True]), 'carry/[3]/action': array([ True,  True,  True]), 'feat/deter': array([False, False, False]), 'feat/logit': array([False, False, False]), 'feat/stoch': array([False, False, False]), 'obs/doorvis': array([ True,  True,  True]), 'obs/image': array([ True,  True,  True]), 'obs/is_first': array([ True,  True,  True]), 'obs/is_last': array([ True,  True,  True]), 'obs/is_terminal': array([ True,  True,  True]), 'obs/newroom': array([ True,  True,  True]), 'obs/reward': array([ True,  True,  True]), 'tokens': array([False, False, False])}
+    # So, it's a dicionary, so we go through all its keys and values and each value is an array.
+    # We convert that array to jax.tree.leaves(), which doesn't change much to be honest, just turns it into a jax array.
+    # or more like this kind of collection [array([ True,  True,  True])], where the array inside is an np array.
+    # now we apply all() function on that np array, which returns if all elements are True.
+    # And finally we apply all() to all such results.
+    # So in a nutshell we assert here that all boolean flags in the finite dictionary are True.
+    # And if the assertion fails, then we print out the whole finite structure to debug.
     for key, fin in finite.items():
       assert all(x.all() for x in jax.tree.leaves(fin)), str(finite)
     for key, space in self.act_space.items():

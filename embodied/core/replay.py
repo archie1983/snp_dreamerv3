@@ -122,6 +122,7 @@ class Replay:
     message = f'Replay buffer {self.name} is empty'
     limiters.wait(lambda: len(self.sampler), message)
     seqs, is_online = zip(*[self._sample(mode) for _ in range(batch)])
+    #print("AE: seqs: ", seqs)
     data = self._assemble_batch(seqs, 0, self.length)
     data = self._annotate_batch(data, is_online, True)
     return data
