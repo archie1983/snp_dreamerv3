@@ -218,6 +218,10 @@ indoorsrc:
 indoorsdoor:
   task: indoors_door
 
+indoorsper:
+  task: indoors_perimeter
+  env.indoors.length: 2000
+
 indoorsaedoor_eval:
   task: indoorseval_door
   run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}

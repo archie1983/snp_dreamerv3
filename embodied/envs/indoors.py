@@ -9,6 +9,7 @@ class Indoors(embodied.Wrapper):
     module, cls = {
         'roomcentre': 'indoors_flat:Roomcentre',
         'door': 'indoors_flat:Door',
+        'perimeter': 'indoors_flat:Perimeter'
     }[task].split(':')
     module = importlib.import_module(f'.{module}', __package__)
     cls = getattr(module, cls)
