@@ -1459,6 +1459,45 @@ class PerimeterFinder(AI2ThorBase):
 
         return orig_obs, extra_obs
 
+    def _obs(self, obs, extra_obs):
+        '''
+        Also override _obs function so that it respects the relevant fields
+        :param obs:
+        :param extra_obs:
+        :return:
+        '''
+        #print("_O1")
+        obs = {
+            'image': obs['pov'],
+            'reward': np.float32(0.0), # reward will be calculated later
+            'is_first': obs['is_first'],
+            'is_last': obs['is_last'],
+            'is_terminal': obs['is_terminal'],
+            'doorvis': obs['doorvis'],
+            'newroom': obs['newroom']
+        }
+
+        extra_obs = {
+            'distanceleft': extra_obs['distanceleft'],
+            'initial_distance': extra_obs['initial_distance'],
+            'best_path_length': extra_obs['best_path_length'],
+            'first_point_reached': extra_obs['first_point_reached'],
+            'next_point_reached': extra_obs['next_point_reached'],
+            'cur_pos': extra_obs['cur_pos'],
+            'boundary_points_left': extra_obs['boundary_points_left']
+        }
+
+        #print("obs: ", obs)
+        for key, value in obs.items():
+            space = self._obs_space[key]
+            if not isinstance(value, np.ndarray):
+                value = np.array(value)
+            #print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
+            assert value in space, (key, value, value.dtype, value.shape, space)
+        #print("obs: ", obs)
+        #print("_O2")
+        return obs, extra_obs
+
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0, eval = False):
         return (len(self.boundary_points) == 0)
