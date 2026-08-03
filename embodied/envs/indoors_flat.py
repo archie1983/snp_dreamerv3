@@ -159,7 +159,7 @@ class Perimeter(embodied.Wrapper):
 
     def step(self, action):
         env_res = self.env.step(action, add_extra = True)
-        #print("AE: env_res: ", env_res)
+        print("AE: env_res: ", env_res)
         obs, extra_obs = env_res
         #obs, extra_obs = self.env.step(action, add_extra = True)
 
@@ -248,6 +248,7 @@ class DistanceReductionReward:
 
 class DistanceReductionRewardForPerimeter(DistanceReductionReward):
     def __call__(self, obs, extra_obs, action):
+        print("extra_obs: ", extra_obs)
         if not extra_obs['first_point_reached']:
             return super.__call__(obs, extra_obs, action)
         else:
@@ -750,7 +751,7 @@ class AI2ThorBase(embodied.Env):
     # Returns current observation of the state (image mostly)
     ##
     def current_ai2thor_observation(self):
-        #print("O1")
+        print("O1")
         event = self.controller.last_event
         self._current_image = event.cv2img
 
@@ -1395,12 +1396,13 @@ class DoorFinder(AI2ThorBase):
 ##
 class PerimeterFinder(AI2ThorBase):
     def __init__(self, actions, *args, **kwargs):
-        super().__init__(actions, *args, **kwargs)
+        #super().__init__(actions, *args, **kwargs)
         self.bc = BoundaryCalculations()
         self.boundary_points = set()
         self.first_point_reached = False
         self.looking_at = None
         self.steps_to_point_acceptable = 2
+        super().__init__(actions, *args, **kwargs)
 
     def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
         self.first_point_reached = False
@@ -1416,16 +1418,21 @@ class PerimeterFinder(AI2ThorBase):
         self.boundary_points = self.bc.find_room_perimeter_path(self.reachable_positions, self.unreachable_postions,
                                                            room_of_placement, self.habitat)
 
+        # current_location:  (2.38, 4.62, 225)
         self.looking_at = self.bc.get_target_boundary_point(self.boundary_points, current_location)
         #print("cur_pos: ", current_location, " looking_at: ", looking_at)
-        return self.looking_at
+        if self.looking_at is None:
+            raise ValueError("Looking at point can't be determined")
+        return Point(self.looking_at)
 
     def current_ai2thor_observation(self):
+        print("O1.child")
         '''
         Override the current observation method to add additional extra_obs fields
         :return:
         '''
         orig_obs, extra_obs = super().current_ai2thor_observation()
+        print("O1.child2")
         cur_pos = self.rnc.get_agent_pos_and_rotation()
         extra_obs['cur_pos'] = cur_pos
         extra_obs['next_point_reached'] = False
@@ -1446,6 +1453,9 @@ class PerimeterFinder(AI2ThorBase):
 
         extra_obs['boundary_points_left'] = len(self.boundary_points)
         extra_obs['first_point_reached'] = self.first_point_reached
+
+        traceback.print_stack()
+        print("extra_obs O2: ", extra_obs)
 
         return orig_obs, extra_obs
 
