@@ -107,6 +107,9 @@ class Agent(embodied.jax.Agent):
 
     scales = self.config.loss_scales.copy()
     rec = scales.pop('rec')
+    if not self.use_doorvis_and_newroom_heads:
+      scales.pop('doorvis')
+      scales.pop('newroom')
     scales.update({k: rec for k in dec_space})
     self.scales = scales
 
