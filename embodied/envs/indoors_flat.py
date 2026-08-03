@@ -6,7 +6,8 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping, e
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
                                               get_all_objects_of_type, is_point_inside_room_ground_truth,
-                                              create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType)
+                                              create_full_grid_from_room_layout, add_buffer_to_unreachable,
+                                              RoomType, BoundaryCalculations)
 
 import thortils as tt
 from thortils import launch_controller
@@ -132,6 +133,57 @@ class Door(embodied.Wrapper):
         # training guidance to navigate to a specific door, not just a random door. Introduce room field in observation so that we can
         # classify target achieved when we change rooms.
 
+class Perimeter(embodied.Wrapper):
+
+    def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
+        actions = action_mapping
+        reward_close_enough = kwargs["reward_close_enough"]
+
+        # Actions
+        actions = actions.copy()
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
+
+        self.rewards = [
+            DistanceReductionRewardForPerimeter(),
+            TargetAchievedRewardForPerimeter(),
+            StepCountPenalizerForPerimeter()
+        ]
+        length = kwargs.pop('length', 36000)
+        env = PerimeterFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
+        env = embodied.wrappers.TimeLimit(env, length)
+        print("AE: TimeWrapped: ", env)
+        super().__init__(env)
+
+    def step(self, action):
+        env_res = self.env.step(action, add_extra = True)
+        #print("AE: env_res: ", env_res)
+        obs, extra_obs = env_res
+        #obs, extra_obs = self.env.step(action, add_extra = True)
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
+        obs['reward'] = np.float32(reward)
+
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
+            episode_stats = {
+                "final_reward": str(obs['reward']),
+            }
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
+
+        # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
+        # so perhaps it can stay for now.
+        #obs.pop("distance_left")
+        return obs
+
 ##
 # Using this class, we can stack objectives of the agent behaviour. E.g., to first achieve the
 # middle of the room and only then look for the doors. Or even find all doors in order.
@@ -194,6 +246,13 @@ class DistanceReductionReward:
 
         return np.float32(reward)
 
+class DistanceReductionRewardForPerimeter(DistanceReductionReward):
+    def __call__(self, obs, extra_obs, action):
+        if not extra_obs['first_point_reached']:
+            return super.__call__(obs, extra_obs, action)
+        else:
+            return np.float32(0.0)
+
 ##
 # Penalize each step with -1 after the initial nearest length of the steps for a door.
 # The fewer the steps, the better final reward.
@@ -216,6 +275,46 @@ class StepCountPenalizer:
         #    reward = -0.1
         if self.steps_done > 2 * extra_obs['best_path_length']:
             reward = -0.25
+
+        return np.float32(reward * self.scale)
+
+##
+# Penalize each step after the initial nearest length of the path for first boundary point.
+# The fewer the steps, the better final reward.
+##
+class StepCountPenalizerForPerimeter:
+    def __init__(self, scale=1.0):
+        self.scale = scale
+        self.steps_done = 0
+        self.first_point_visited = False
+        self.initial_number_of_boundary_points = 0
+
+    def __call__(self, obs, extra_obs, action):
+        reward = 0.0
+        if obs['is_first']:
+            self.steps_done = 0
+            self.first_point_visited = False
+            self.initial_number_of_boundary_points = extra_obs['boundary_points_left']
+        else:
+            self.steps_done += 1
+
+        if extra_obs['first_point_reached']:
+            # if we have already seen the first point, then allow only 3 penalty free steps (in case of large rotation) until next point is reached
+            # reset the steps_done count every time a boundary point is seen.
+            if extra_obs['next_point_reached'] or not self.first_point_visited:
+                self.first_point_visited = True
+                self.steps_done = 0
+
+            # calculate penalty if steps_done counter is more than 3
+            if self.steps_done >= 3:
+                #reward = -0.25
+                # make penalty dependent on the number of points left to give a clue to the optimizer of how many points are left.
+                reward = -(extra_obs['boundary_points_left'] / self.initial_number_of_boundary_points)
+
+        else:
+            if self.steps_done > 2 * extra_obs['best_path_length']:
+                # If we're still looking for the first boundary point and have exceeded best path 2 times, then penalize
+                reward = -0.25
 
         return np.float32(reward * self.scale)
 
@@ -317,6 +416,45 @@ class TargetAchievedRewardRoomCentre:
             if extra_obs['distanceleft'] <= self.epsilon:
                 reward += 20
             self.reward_issued = True
+            #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
+        return np.float32(reward)
+
+##
+# Issue a reward for achieving the target - once per scene
+##
+class TargetAchievedRewardForPerimeter:
+    def __init__(self):
+        '''
+        :param epsilon: How close is close enough to issue the reward
+        '''
+        self.first_point_reward_issued = False
+        self.stop_reward_issued = False
+
+    def __call__(self, obs, extra_obs, action):
+        #print("T1")
+        reward = 0
+        if obs['is_first']:
+            self.first_point_reward_issued = False
+            self.stop_reward_issued = False
+
+        if not self.first_point_reward_issued and extra_obs['first_point_reached']:
+            reward += 10
+            self.first_point_reward_issued = True
+
+        if extra_obs['next_point_reached']:
+            reward += 2.5
+
+        elif not self.stop_reward_issued and index_to_action(int(action['action'])) == "STOP":
+            '''
+            We only want to issue this reward once the STOP action has been issued by the model. And at that point we will calculate
+            how much we award based on remaining points left unvisited
+            '''
+            # double the penalty for distance left to discourage early STOP
+            if extra_obs['boundary_points_left'] > 0:
+                reward = - 2.5 * extra_obs['boundary_points_left'] # 2.5 points taken away for each un-visited point
+            else:
+                reward = 100 # 100 for all points visited
+            self.stop_reward_issued = True
             #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
         return np.float32(reward)
 
@@ -1241,14 +1379,76 @@ class DoorFinder(AI2ThorBase):
     def have_we_arrived(self, epsilon = 0.0, eval = False):
         # If we're free to choose any door as destination (i.e., we are evaluating),
         # then mark it as arrived if we're within distance of any door
-        #if eval:
-        if True:
-            if self.all_door_targets != None:
-                for dt in self.all_door_targets:
-                    p1 = (dt['pos']['x'], dt['pos']['z'])
-                    p2 = (self.cur_pos_xy[0], self.cur_pos_xy[2])
-                    if euclidean_dist(p1, p2) <= epsilon:
-                        return True
-            return False
-        else: # otherwise we have a calculated path length to the specific door that we want and we need to compare that to allowed error
-            return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
+        #if eval: # This was relaxed for training - to allow any door as target
+        if self.all_door_targets != None:
+            for dt in self.all_door_targets:
+                p1 = (dt['pos']['x'], dt['pos']['z'])
+                p2 = (self.cur_pos_xy[0], self.cur_pos_xy[2])
+                if euclidean_dist(p1, p2) <= epsilon:
+                    return True
+        return False
+        # else: # otherwise we have a calculated path length to the specific door that we want and we need to compare that to allowed error
+        #     return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
+
+##
+# Room perimeter finding task
+##
+class PerimeterFinder(AI2ThorBase):
+    def __init__(self, actions, *args, **kwargs):
+        super().__init__(actions, *args, **kwargs)
+        self.bc = BoundaryCalculations()
+        self.boundary_points = set()
+        self.first_point_reached = False
+        self.looking_at = None
+        self.steps_to_point_acceptable = 2
+
+    def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
+        self.first_point_reached = False
+        return self.find_perimeter_point_looking_at(place_with_rtn, place_with_no_rtn)
+
+    ##
+    # Finds the centre of the current room given the current position and the rooms in habitat.
+    ##
+    def find_perimeter_point_looking_at(self, current_location, point_for_room_search):
+        room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+        if (room_of_placement == None): raise ValueError("Room of placement not identifiable")
+
+        self.boundary_points = self.bc.find_room_perimeter_path(self.reachable_positions, self.unreachable_postions,
+                                                           room_of_placement, self.habitat)
+
+        self.looking_at = self.bc.get_target_boundary_point(self.boundary_points, current_location)
+        #print("cur_pos: ", current_location, " looking_at: ", looking_at)
+        return self.looking_at
+
+    def current_ai2thor_observation(self):
+        '''
+        Override the current observation method to add additional extra_obs fields
+        :return:
+        '''
+        orig_obs, extra_obs = super().current_ai2thor_observation()
+        cur_pos = self.rnc.get_agent_pos_and_rotation()
+        extra_obs['cur_pos'] = cur_pos
+        extra_obs['next_point_reached'] = False
+
+        cur_pos_2d = (cur_pos[0][0], cur_pos[0][2])
+        # if we have reached the first point of perimeter within close proximity, then proceed to the next stage of perimeter navigation
+        if (not self.first_point_reached and euclidean_dist(cur_pos_2d, self.looking_at) <= self.steps_to_point_acceptable * self.grid_size):
+            self.first_point_reached = True
+            self.boundary_points.remove(self.looking_at)
+
+        # if first point has already been reached, then check which one is the next nearest point. if we are near any other points
+        if self.first_point_reached and len(self.boundary_points) > 0:
+            next_nearest_point, distance_to_np = min([(euclidean_dist(cur_pos_2d, p), p) for p in self.boundary_points], key=lambda x: x[0])
+            if distance_to_np <= self.steps_to_point_acceptable * self.grid_size:
+                # reached next point
+                self.boundary_points.remove(next_nearest_point)
+                extra_obs['next_point_reached'] = True
+
+        extra_obs['boundary_points_left'] = len(self.boundary_points)
+        extra_obs['first_point_reached'] = self.first_point_reached
+
+        return orig_obs, extra_obs
+
+    # Determines if we have little enough left to call it an achieved goal
+    def have_we_arrived(self, epsilon = 0.0, eval = False):
+        return (len(self.boundary_points) == 0)
