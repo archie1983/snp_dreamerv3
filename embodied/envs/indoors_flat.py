@@ -159,7 +159,7 @@ class Perimeter(embodied.Wrapper):
 
     def step(self, action):
         env_res = self.env.step(action, add_extra = True)
-        print("AE: env_res: ", env_res)
+        #print("AE: env_res: ", env_res)
         obs, extra_obs = env_res
         #obs, extra_obs = self.env.step(action, add_extra = True)
 
@@ -248,9 +248,9 @@ class DistanceReductionReward:
 
 class DistanceReductionRewardForPerimeter(DistanceReductionReward):
     def __call__(self, obs, extra_obs, action):
-        print("extra_obs: ", extra_obs)
+        #print("extra_obs: ", extra_obs)
         if not extra_obs['first_point_reached']:
-            return super.__call__(obs, extra_obs, action)
+            return super().__call__(obs, extra_obs, action)
         else:
             return np.float32(0.0)
 
@@ -751,7 +751,7 @@ class AI2ThorBase(embodied.Env):
     # Returns current observation of the state (image mostly)
     ##
     def current_ai2thor_observation(self):
-        print("O1")
+        #print("O1")
         event = self.controller.last_event
         self._current_image = event.cv2img
 
@@ -1278,7 +1278,7 @@ class AI2ThorBase(embodied.Env):
     ##
     def euclidean_dist_to_all_targets(self):
         dists = []
-        if self.all_door_targets != None:
+        if hasattr(self, 'all_door_targets') and self.all_door_targets != None:
             for dt in self.all_door_targets:
                 p1 = (dt['pos']['x'], dt['pos']['z'])
                 p2 = (self.cur_pos_xy[0], self.cur_pos_xy[2])
@@ -1426,13 +1426,13 @@ class PerimeterFinder(AI2ThorBase):
         return Point(self.looking_at)
 
     def current_ai2thor_observation(self):
-        print("O1.child")
+        #print("O1.child")
         '''
         Override the current observation method to add additional extra_obs fields
         :return:
         '''
         orig_obs, extra_obs = super().current_ai2thor_observation()
-        print("O1.child2")
+        #print("O1.child2")
         cur_pos = self.rnc.get_agent_pos_and_rotation()
         extra_obs['cur_pos'] = cur_pos
         extra_obs['next_point_reached'] = False
@@ -1441,11 +1441,13 @@ class PerimeterFinder(AI2ThorBase):
         # if we have reached the first point of perimeter within close proximity, then proceed to the next stage of perimeter navigation
         if (not self.first_point_reached and euclidean_dist(cur_pos_2d, self.looking_at) <= self.steps_to_point_acceptable * self.grid_size):
             self.first_point_reached = True
+            #if self.looking_at not in self.boundary_points:
+            #    breakpoint()
             self.boundary_points.remove(self.looking_at)
 
         # if first point has already been reached, then check which one is the next nearest point. if we are near any other points
         if self.first_point_reached and len(self.boundary_points) > 0:
-            next_nearest_point, distance_to_np = min([(euclidean_dist(cur_pos_2d, p), p) for p in self.boundary_points], key=lambda x: x[0])
+            distance_to_np, next_nearest_point = min([(euclidean_dist(cur_pos_2d, p), p) for p in self.boundary_points], key=lambda x: x[0])
             if distance_to_np <= self.steps_to_point_acceptable * self.grid_size:
                 # reached next point
                 self.boundary_points.remove(next_nearest_point)
@@ -1454,8 +1456,8 @@ class PerimeterFinder(AI2ThorBase):
         extra_obs['boundary_points_left'] = len(self.boundary_points)
         extra_obs['first_point_reached'] = self.first_point_reached
 
-        traceback.print_stack()
-        print("extra_obs O2: ", extra_obs)
+        #traceback.print_stack()
+        #print("extra_obs O2: ", extra_obs)
 
         return orig_obs, extra_obs
 
