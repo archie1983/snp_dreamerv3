@@ -147,7 +147,7 @@ class Perimeter(embodied.Wrapper):
 
         self.rewards = [
             DistanceReductionRewardForPerimeter(),
-            TargetAchievedRewardForPerimeter(),
+            TargetAchievedRewardForPerimeter(epsilon=reward_close_enough),
             StepCountPenalizerForPerimeter()
         ]
         length = kwargs.pop('length', 36000)
@@ -425,12 +425,13 @@ class TargetAchievedRewardRoomCentre:
 # Issue a reward for achieving the target - once per scene
 ##
 class TargetAchievedRewardForPerimeter:
-    def __init__(self):
+    def __init__(self, epsilon = 0.0):
         '''
         :param epsilon: How close is close enough to issue the reward
         '''
         self.first_point_reward_issued = False
         self.stop_reward_issued = False
+        self.epsilon = epsilon
 
     def __call__(self, obs, extra_obs, action):
         #print("T1")
