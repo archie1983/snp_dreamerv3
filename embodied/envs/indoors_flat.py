@@ -310,7 +310,8 @@ class StepCountPenalizerForPerimeter:
             if self.steps_done >= 3:
                 #reward = -0.25
                 # make penalty dependent on the number of points left to give a clue to the optimizer of how many points are left.
-                reward = -(extra_obs['boundary_points_left'] / self.initial_number_of_boundary_points)
+                #reward = -(extra_obs['boundary_points_left'] / self.initial_number_of_boundary_points)
+                reward = -0.25
 
         else:
             if self.steps_done > 2 * extra_obs['best_path_length']:
@@ -438,25 +439,43 @@ class TargetAchievedRewardForPerimeter:
             self.first_point_reward_issued = False
             self.stop_reward_issued = False
 
-        if not self.first_point_reward_issued and extra_obs['first_point_reached']:
-            reward += 10
-            self.first_point_reward_issued = True
-
-        if extra_obs['next_point_reached']:
-            reward += 2.5
-
-        elif not self.stop_reward_issued and index_to_action(int(action['action'])) == "STOP":
+        if not self.stop_reward_issued and index_to_action(int(action['action'])) == "STOP":
+            # TODO: No reward for getting closer to the first point. Make it similar to TargetAchievedRewardForRoomcentre
             '''
             We only want to issue this reward once the STOP action has been issued by the model. And at that point we will calculate
-            how much we award based on remaining points left unvisited
+            how much we award based on distance left and remaining points left unvisited
             '''
-            # double the penalty for distance left to discourage early STOP
-            if extra_obs['boundary_points_left'] > 0:
-                reward = - 2.5 * extra_obs['boundary_points_left'] # 2.5 points taken away for each un-visited point
+            if not extra_obs['first_point_reached']:
+                # if we haven't reached the first point, then do the same that we do for room center
+                if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
+                    reward = (extra_obs['initial_distance'] - 2 * extra_obs['distanceleft'])
+                else:
+                    reward = 3 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
+                # extra reward for achieving epsilon requirement
+                if extra_obs['distanceleft'] <= self.epsilon:
+                    reward += 20
+                # print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
             else:
-                reward = 100 # 100 for all points visited
+                # if we did achieve first point, then reward that with 100
+                reward += 100
+
+            if extra_obs['boundary_points_left'] > 0:
+                reward -= 0.5 * extra_obs['boundary_points_left']  # 0.5 points taken away for each un-visited point
+            else:
+                reward += 100  # 100 for all points visited
             self.stop_reward_issued = True
-            #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
+            # print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
+        else:
+            '''
+            If this is not a STOP condition, then usual reward for point reaching
+            '''
+            if not self.first_point_reward_issued and extra_obs['first_point_reached']:
+                reward += 10
+                self.first_point_reward_issued = True
+
+            if extra_obs['next_point_reached']:
+                reward += 2.5
+
         return np.float32(reward)
 
 class AI2ThorBase(embodied.Env):
