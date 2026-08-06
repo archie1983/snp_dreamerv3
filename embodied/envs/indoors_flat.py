@@ -461,7 +461,7 @@ class TargetAchievedRewardForPerimeter:
                 reward += 100
 
             if extra_obs['boundary_points_left'] > 0:
-                reward -= 2.5 * extra_obs['boundary_points_left']  # 0.5 points taken away for each un-visited point
+                reward -= 1.0 * extra_obs['boundary_points_left']  # 0.5 points taken away for each un-visited point
             else:
                 reward += 100  # 100 for all points visited
             self.stop_reward_issued = True
