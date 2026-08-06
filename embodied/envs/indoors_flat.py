@@ -1438,6 +1438,9 @@ class PerimeterFinder(AI2ThorBase):
         self.boundary_points = self.bc.find_room_perimeter_path(self.reachable_positions, self.unreachable_postions,
                                                            room_of_placement, self.habitat)
 
+        if self.boundary_points is None:
+            raise ValueError("Boundary can't be determined")
+
         # current_location:  (2.38, 4.62, 225)
         self.looking_at = self.bc.get_target_boundary_point(self.boundary_points, current_location)
         #print("cur_pos: ", current_location, " looking_at: ", looking_at)
