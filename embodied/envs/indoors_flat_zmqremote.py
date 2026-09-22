@@ -80,6 +80,33 @@ class Door(embodied.Wrapper):
         # training guidance to navigate to a specific door, not just a random door. Introduce room field in observation so that we can
         # classify target achieved when we change rooms.
 
+class Perimeter(embodied.Wrapper):
+
+    def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
+        actions = action_mapping
+
+        # Actions
+        actions = actions.copy()
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
+
+        length = kwargs.pop('length', 36000)
+        env = AI2ThorBase(actions, *args, **kwargs, env_type="PerimeterFinder")
+        self.unwrapped_env = env
+        env = embodied.wrappers.TimeLimit(env, length)
+        super().__init__(env)
+
+    def step(self, action):
+        obs = self.env.step(action)
+        reward = 0.0
+        obs['reward'] = np.float32(reward)
+
+        # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
+        # so perhaps it can stay for now.
+        #obs.pop("distance_left")
+        return obs
+
 class AI2ThorBase(embodied.Env):
     def __init__(self,
                  actions,

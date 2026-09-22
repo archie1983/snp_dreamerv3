@@ -13,6 +13,7 @@ class IndoorsEval(embodied.Wrapper):
 #        'remotedoor': 'indoors_flat_remote:Door',
         'remoteroomcentre': 'indoors_flat_zmqremote:Roomcentre',
         'remotedoor': 'indoors_flat_zmqremote:Door',
+        'remoteperimeter': 'indoors_flat_zmqremote:Perimeter'
     }[task].split(':')
     module = importlib.import_module(f'.{module}', __package__)
     cls = getattr(module, cls)
