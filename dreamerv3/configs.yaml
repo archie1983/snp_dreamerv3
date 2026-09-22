@@ -243,6 +243,11 @@ indoorsremotedoor_eval:
   run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 
+indoorsremoteperimeter_eval:
+  task: indoorsjetsoneval_remoteperimeter
+  run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  script: eval_only
+
 multicpu:
   batch_size: 12
   jax.mock_devices: 8
