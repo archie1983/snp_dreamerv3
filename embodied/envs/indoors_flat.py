@@ -145,6 +145,9 @@ class Perimeter(embodied.Wrapper):
         #if "STOP" in actions:
         #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
+        # TODO: Introduce penalty for wandering into a new room and maybe give reward for further away from the edge,
+        #  give some reward for choosing to walk towards the more open side of the room after the 1st straight leg
+        #  is done.
         self.rewards = [
             DistanceReductionRewardForPerimeter(),
             TargetAchievedRewardForPerimeter(epsilon=reward_close_enough),
@@ -1525,4 +1528,4 @@ class PerimeterFinder(AI2ThorBase):
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0, eval = False):
-        return (len(self.boundary_points) == 0)
+        return (len(self.boundary_points) <= 10)
