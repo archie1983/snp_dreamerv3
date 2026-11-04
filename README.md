@@ -65,6 +65,24 @@ loading checkpoint from "~/logdir/train_results/door_ckpt/".
 python dreamerv3/main.py --configs indoorsaedoor_eval --run.envs 3 --batch_size 3 --run.from_checkpoint "~/logdir/train_results/door_ckpt/" --logdir "door_eval_results"
 ```
 
+### To launch on Jetson
+First start the server on a machine that can run AI2-Thor. This can be done
+using the following script: 
+```
+cd ai2_thor_model_training_src/ai2_thor_model_training/ae_utils
+python remote_complex_env.py
+```
+
+Now launch on Jetson:
+For Room centre SNP (set your own server ip address, log directory and checkpoint):
+```
+python dreamerv3/main.py --configs indoorsremoteroomcentre_eval --run.envs 1 --batch_size 1 --run.from_checkpoint /dreamer3/ckpt_2753k --logdir aaa --env.indoorseval.server_ip=192.168.1.100 --env.indoorseval.agent_type="rc"
+```
+
+For Door finding SNP:
+```commandline
+python dreamerv3/main.py --configs indoorsremotedoor_eval --run.envs 1 --batch_size 1 --run.from_checkpoint /dreamer3/ckpt_2753k --logdir aaa --env.indoorseval.server_ip=192.168.1.100 --env.indoorseval.agent_type="dr"
+
 ### Potential problems
 The code is using headless AI2-Thor for training and evaluation. It expects 2 GPUs:
 1 for generating AI2-Thor imagery and the other for training. This can be changed in:
