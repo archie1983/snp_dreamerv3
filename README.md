@@ -75,14 +75,14 @@ python remote_complex_env.py
 
 Now launch on Jetson:
 For Room centre SNP (set your own server ip address, log directory and checkpoint):
-```
+```commandline
 python dreamerv3/main.py --configs indoorsremoteroomcentre_eval --run.envs 1 --batch_size 1 --run.from_checkpoint /dreamer3/ckpt_2753k --logdir aaa --env.indoorseval.server_ip=192.168.1.100 --env.indoorseval.agent_type="rc"
 ```
 
 For Door finding SNP:
 ```commandline
 python dreamerv3/main.py --configs indoorsremotedoor_eval --run.envs 1 --batch_size 1 --run.from_checkpoint /dreamer3/ckpt_2753k --logdir aaa --env.indoorseval.server_ip=192.168.1.100 --env.indoorseval.agent_type="dr"
-
+```
 ### Potential problems
 The code is using headless AI2-Thor for training and evaluation. It expects 2 GPUs:
 1 for generating AI2-Thor imagery and the other for training. This can be changed in:
