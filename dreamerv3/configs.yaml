@@ -223,6 +223,9 @@ indoorsper:
   task: indoors_perimeter
   env.indoors.length: 2000
 
+indoorsstraight:
+  task: indoors_straightpath
+
 indoorsaedoor_eval:
   task: indoorseval_door
   run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
@@ -245,6 +248,11 @@ indoorsremotedoor_eval:
 
 indoorsremoteperimeter_eval:
   task: indoorsjetsoneval_remoteperimeter
+  run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  script: eval_only
+
+remotestraightpath_eval:
+  task: indoorsjetsoneval_remotestraightpath
   run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 

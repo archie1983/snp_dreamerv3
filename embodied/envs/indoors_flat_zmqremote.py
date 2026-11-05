@@ -107,6 +107,33 @@ class Perimeter(embodied.Wrapper):
         #obs.pop("distance_left")
         return obs
 
+class StraightPath(embodied.Wrapper):
+    """
+    This SNP will simply walk in a straight line from the spawning point to the edge of the room, while avoiding all
+    obstacles
+    """
+    def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
+        actions = action_mapping
+        reward_close_enough = kwargs["reward_close_enough"]
+
+        # Actions
+        actions = actions.copy()
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
+
+        length = kwargs.pop('length', 36000)
+        env = AI2ThorBase(actions, *args, **kwargs, env_type="StraightPathFinder")
+        self.unwrapped_env = env
+        env = embodied.wrappers.TimeLimit(env, length)
+        super().__init__(env)
+
+    def step(self, action):
+        obs = self.env.step(action)
+        reward = 0.0
+        obs['reward'] = np.float32(reward)
+        return obs
+
 class AI2ThorBase(embodied.Env):
     def __init__(self,
                  actions,

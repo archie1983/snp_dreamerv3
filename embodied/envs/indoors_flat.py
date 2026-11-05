@@ -187,6 +187,60 @@ class Perimeter(embodied.Wrapper):
         #obs.pop("distance_left")
         return obs
 
+class StraightPath(embodied.Wrapper):
+    """
+    This SNP will simply walk in a straight line from the spawning point to the edge of the room, while avoiding all
+    obstacles
+    """
+    def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
+        actions = action_mapping
+        reward_close_enough = kwargs["reward_close_enough"]
+
+        # Actions
+        actions = actions.copy()
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
+
+        self.rewards = [
+            DistanceReductionReward(),
+            TargetAchievedRewardRoomCentre(epsilon=reward_close_enough), # we can reuse RoomCentre reward for target achieved here
+            StepCountPenalizer() # we can reuse ordinary step count penalizer here
+        ]
+        length = kwargs.pop('length', 36000)
+        env = StraightPathFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
+        env = embodied.wrappers.TimeLimit(env, length)
+        print("AE: TimeWrapped: ", env)
+        super().__init__(env)
+
+    def step(self, action):
+        env_res = self.env.step(action, add_extra = True)
+        #print("AE: env_res: ", env_res)
+        obs, extra_obs = env_res
+        #obs, extra_obs = self.env.step(action, add_extra = True)
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
+        obs['reward'] = np.float32(reward)
+
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
+            episode_stats = {
+                "final_reward": str(obs['reward']),
+            }
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
+
+        # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
+        # so perhaps it can stay for now.
+        #obs.pop("distance_left")
+        return obs
+
 ##
 # Using this class, we can stack objectives of the agent behaviour. E.g., to first achieve the
 # middle of the room and only then look for the doors. Or even find all doors in order.
@@ -1529,3 +1583,105 @@ class PerimeterFinder(AI2ThorBase):
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0, eval = False):
         return (len(self.boundary_points) <= 10)
+
+# Straight Line Walker task
+class StraightPathFinder(AI2ThorBase):
+    def __init__(self, actions, *args, **kwargs):
+        #super().__init__(actions, *args, **kwargs)
+        self.bc = BoundaryCalculations()
+        self.boundary_points = set()
+        self.target_reached = False
+        self.looking_at = None
+        self.steps_to_point_acceptable = 2
+        super().__init__(actions, *args, **kwargs)
+
+    def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
+        self.target_reached = False
+        return self.find_perimeter_point_looking_at(place_with_rtn, place_with_no_rtn)
+
+    ##
+    # Finds the centre of the current room given the current position and the rooms in habitat.
+    ##
+    def find_perimeter_point_looking_at(self, current_location, point_for_room_search):
+        room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+        if (room_of_placement == None): raise ValueError("Room of placement not identifiable")
+
+        self.boundary_points = self.bc.find_room_perimeter_path(self.reachable_positions, self.unreachable_postions,
+                                                           room_of_placement, self.habitat)
+
+        if self.boundary_points is None:
+            raise ValueError("Boundary can't be determined")
+
+        # current_location:  (2.38, 4.62, 225)
+        self.looking_at = self.bc.get_target_boundary_point(self.boundary_points, current_location, max_distance = 15.0)
+        #print("cur_pos: ", current_location, " looking_at: ", looking_at)
+        if self.looking_at is None:
+            raise ValueError("Looking at point can't be determined")
+        return Point(self.looking_at)
+
+    def current_ai2thor_observation(self):
+        #print("O1.child")
+        '''
+        Override the current observation method to add additional extra_obs fields
+        :return:
+        '''
+        orig_obs, extra_obs = super().current_ai2thor_observation()
+        #print("O1.child2")
+        cur_pos = self.rnc.get_agent_pos_and_rotation()
+        extra_obs['cur_pos'] = cur_pos
+        extra_obs['target_reached'] = False
+
+        cur_pos_2d = (cur_pos[0][0], cur_pos[0][2])
+        # if we have reached the first point of perimeter within close proximity, then we're done
+        if (not self.target_reached and euclidean_dist(cur_pos_2d, self.looking_at) <= self.steps_to_point_acceptable * self.grid_size):
+            self.target_reached = True
+            #if self.looking_at not in self.boundary_points:
+            #    breakpoint()
+
+        extra_obs['target_reached'] = self.target_reached
+
+        #traceback.print_stack()
+        #print("extra_obs O2: ", extra_obs)
+
+        return orig_obs, extra_obs
+
+    def _obs(self, obs, extra_obs):
+        '''
+        Also override _obs function so that it respects the relevant fields
+        :param obs:
+        :param extra_obs:
+        :return:
+        '''
+        #print("_O1")
+        obs = {
+            'image': obs['pov'],
+            'reward': np.float32(0.0), # reward will be calculated later
+            'is_first': obs['is_first'],
+            'is_last': obs['is_last'],
+            'is_terminal': obs['is_terminal'],
+            'doorvis': obs['doorvis'],
+            'newroom': obs['newroom']
+        }
+
+        extra_obs = {
+            'distanceleft': extra_obs['distanceleft'],
+            'initial_distance': extra_obs['initial_distance'],
+            'best_path_length': extra_obs['best_path_length'],
+            'target_reached': extra_obs['target_reached'],
+            'cur_pos': extra_obs['cur_pos']
+        }
+
+        #print("obs: ", obs)
+        for key, value in obs.items():
+            space = self._obs_space[key]
+            if not isinstance(value, np.ndarray):
+                value = np.array(value)
+            #print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
+            assert value in space, (key, value, value.dtype, value.shape, space)
+        #print("obs: ", obs)
+        #print("_O2")
+        return obs, extra_obs
+
+    # Determines if we have little enough left to call it an achieved goal
+    def have_we_arrived(self, epsilon = 0.0, eval = False):
+        return self.target_reached
