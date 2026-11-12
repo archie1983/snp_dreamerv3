@@ -1828,6 +1828,10 @@ class DirectedDoorFinder(AI2ThorBase):
             'doordir': elements.Space(np.float32),
         }
 
+    def _reset(self):
+        super._reset()
+        return self.current_ai2thor_observation()
+
     def current_ai2thor_observation(self):
         print("O1.child")
         '''
