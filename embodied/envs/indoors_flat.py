@@ -743,6 +743,7 @@ class AI2ThorBase(embodied.Env):
 
     @property
     def obs_space(self):
+        print("OSPACE1")
         return {
             'image': elements.Space(np.uint8, self._size + (3,)),
             'reward': elements.Space(np.float32),
@@ -889,7 +890,7 @@ class AI2ThorBase(embodied.Env):
     # Returns current observation of the state (image mostly)
     ##
     def current_ai2thor_observation(self):
-        #print("O1")
+        print("O1")
         event = self.controller.last_event
         self._current_image = event.cv2img
 
@@ -1815,6 +1816,7 @@ class DirectedDoorFinder(AI2ThorBase):
 
     @property
     def obs_space(self):
+        print("OSPACE1.child")
         return {
             'image': elements.Space(np.uint8, self._size + (3,)),
             'reward': elements.Space(np.float32),
@@ -1827,7 +1829,7 @@ class DirectedDoorFinder(AI2ThorBase):
         }
 
     def current_ai2thor_observation(self):
-        #print("O1.child")
+        print("O1.child")
         '''
         Override the current observation method to add additional extra_obs fields
         :return:
