@@ -11,12 +11,14 @@ class IndoorsEval(embodied.Wrapper):
         'door': 'indoors_flat:Door',
         'perimeter': 'indoors_flat:Perimeter',
         'straightpath': 'indoors_flat:StraightPath',
+        'directeddoor': 'indoors_flat:DirectedDoor',
 #        'remoteroomcentre': 'indoors_flat_remote:Roomcentre',
 #        'remotedoor': 'indoors_flat_remote:Door',
         'remoteroomcentre': 'indoors_flat_zmqremote:Roomcentre',
         'remotedoor': 'indoors_flat_zmqremote:Door',
         'remoteperimeter': 'indoors_flat_zmqremote:Perimeter',
-        'remotestraightpath': 'indoors_flat_zmqremote:StraightPath'
+        'remotestraightpath': 'indoors_flat_zmqremote:StraightPath',
+        'remotedirecteddoor': 'indoors_flat_zmqremote:DirectedDoor'
     }[task].split(':')
     module = importlib.import_module(f'.{module}', __package__)
     cls = getattr(module, cls)

@@ -7,7 +7,7 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping, e
                                               room_this_point_belongs_to, get_rooms_ground_truth,
                                               get_all_objects_of_type, is_point_inside_room_ground_truth,
                                               create_full_grid_from_room_layout, add_buffer_to_unreachable,
-                                              RoomType, BoundaryCalculations)
+                                              RoomType, BoundaryCalculations, angle_to_turn_to_face_p2_from_p1)
 
 import thortils as tt
 from thortils import launch_controller
@@ -240,6 +240,67 @@ class StraightPath(embodied.Wrapper):
         # so perhaps it can stay for now.
         #obs.pop("distance_left")
         return obs
+
+class DirectedDoor(embodied.Wrapper):
+
+    def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
+        #print("DI1")
+        actions = action_mapping
+        #print("*args: ", args, " **kwargs: ", kwargs)
+        reward_close_enough = kwargs["reward_close_enough"]
+
+        # Actions
+        actions = actions.copy()
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
+
+        self.rewards = [
+            DistanceReductionReward(scale=1.0),
+            StepCountPenalizer(scale=1.0),
+            TargetAchievedRewardRoomCentre(epsilon=reward_close_enough) # we can reuse Room Centre target achieved reward because we are just travelling to a single pre-defined point
+        ]
+        length = kwargs.pop('length', 36000)
+        #print("AE: len", length)
+        env = DirectedDoorFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
+        env = embodied.wrappers.TimeLimit(env, length)
+        super().__init__(env)
+        #print("DI2")
+
+    def step(self, action):
+        #print("A1")
+        #t1 = time.time()
+        obs, extra_obs = self.env.step(action, add_extra=True)
+        #t2 = time.time()
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
+        obs['reward'] = np.float32(reward)
+        #print("A2")
+
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
+            episode_stats = {
+                "final_reward": str(obs['reward']),
+            }
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
+
+        # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
+        # so perhaps it can stay for now.
+        #obs.pop("distance_left")
+        #t3 = time.time()
+        #print("AE: Tt = ", round(t3-t1, 4), " Td = ", round(t2-t1, 4))
+        return obs
+
+        # Introduce a marker on the image that points towards the door that we want to go to. That would allow input and
+        # training guidance to navigate to a specific door, not just a random door. Introduce room field in observation so that we can
+        # classify target achieved when we change rooms.
 
 ##
 # Using this class, we can stack objectives of the agent behaviour. E.g., to first achieve the
@@ -1685,3 +1746,160 @@ class StraightPathFinder(AI2ThorBase):
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0, eval = False):
         return self.target_reached
+
+##
+# Door Finding Task
+##
+class DirectedDoorFinder(AI2ThorBase):
+    def __init__(self, actions, *args, **kwargs):
+        super().__init__(actions, *args, **kwargs)
+        self._obs_space = self.obs_space
+        self.angle_from_door = None
+        self.door_pos = None
+
+    def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
+        self.door_pos = None
+        target_point = self.choose_door_target(place_with_rtn)
+        self.angle_from_door = None
+        return target_point
+
+    ##
+    # Go through all the doors and find the most appropriate as a target, then add a little bit extra so that
+    # we end up going through the door.
+    # place_with_rtn: Place with rotation, e.g.: (6.62, 6.25, 180)
+    ##
+    def choose_door_target(self, place_with_rtn):
+        #print("CD1")
+        current_target_point = None
+        try:
+            current_target_point, _, self.door_pos = self.nu.find_door_target(place_with_rtn,
+                                                            self.rooms_in_habitat,
+                                                            self.reachable_positions,
+                                                            self.habitat,
+                                                            self.controller, close_enough=self.plan_close_enough,
+                                                            step=self.grid_size, extend_path=True, visible_only=True)
+
+            # t1 = time.time()
+            # pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
+            #         (0.0, place_with_rtn[2], 0.0))  # place_with_rtn in AI2-Thor format
+            # path_length = self.nu.get_path_cost_to_target_point(pose,
+            #                                                     current_target_point,
+            #                                                     self.reachable_positions,
+            #                                                     close_enough=self.plan_close_enough,
+            #                                                     step=self.grid_size)
+
+            # if we've been successful so far, then we can now look up room type
+            trg_pos_xy = (current_target_point.x, "", current_target_point.y)
+            self.target_room = room_this_point_belongs_to(self.rooms_in_habitat, trg_pos_xy)
+            # print("AE: path plan time: ", (time.time() - t1))
+        except ValueError as e:
+            #path_length = 0
+            # print("AE: No Path Found", e)
+            print('£', end='', sep='')
+
+        if (self.target_room == None):
+            raise ValueError("Target room not identifiable")
+
+        if current_target_point == None:
+            raise ValueError("No suitable doors were found")
+
+        # print("AE: Path Length: ", path_length)
+        #(cur_path, reachable_positions, start, dest) = self.nu.get_last_path_and_params()
+        # print("AE: Path: ", cur_path)
+        # atu.visualise_path2(cur_path, reachable_positions, unreachable_postions, rooms_in_habitat, start, dest,
+        #                    show_unreachable_pos=False,
+        #                    show_reachable_pos=False)
+        # atu.visualise_path2(cur_path, reachable_positions, buf_unreachable_pos, rooms_in_habitat, start, dest, show_unreachable_pos=True)
+        #print("CD2")
+        return current_target_point
+
+    @property
+    def obs_space(self):
+        return {
+            'image': elements.Space(np.uint8, self._size + (3,)),
+            'reward': elements.Space(np.float32),
+            'is_first': elements.Space(bool),
+            'is_last': elements.Space(bool),
+            'is_terminal': elements.Space(bool),
+            'doorvis': elements.Space(np.float32),
+            'newroom': elements.Space(np.float32),
+            'doordir': elements.Space(np.float32),
+        }
+
+    def current_ai2thor_observation(self):
+        #print("O1.child")
+        '''
+        Override the current observation method to add additional extra_obs fields
+        :return:
+        '''
+        orig_obs, extra_obs = super().current_ai2thor_observation()
+        #print("O1.child2")
+        cur_pos = self.rnc.get_agent_pos_and_rotation()
+        extra_obs['cur_pos'] = cur_pos
+
+        cur_pos_2d = (cur_pos[0][0], cur_pos[0][2])
+        cur_yaw = cur_pos[1][1]
+        #target_pos_2d = (self.current_target_point.x, self.current_target_point.y)
+
+        self.angle_from_door = angle_to_turn_to_face_p2_from_p1(cur_pos_2d, self.door_pos, cur_yaw)
+        # now we will create a door direction indicator based on the angle
+        door_dir = 0.0
+        if self.angle_from_door >= -45.0 and self.angle_from_door < -10.0:
+            door_dir = 1.0 # if the door is on the left
+        elif self.angle_from_door >= -10.0 and self.angle_from_door <= 10.0:
+            door_dir = 2.0 # door is more or less in the center
+        elif self.angle_from_door > 10.0 and self.angle_from_door <= 45.0:
+            door_dir = 3.0 # door is on the right
+        else:
+            door_dir = 0.0 # door is out of sight
+
+        # We want to now calculate the angle between our direction and the door here. Then we will pass that in the
+        # extra_obs and later pass it back into the obs to train on
+        orig_obs['doordir'] = door_dir
+
+        #traceback.print_stack()
+        #print("extra_obs O2: ", extra_obs)
+
+        return orig_obs, extra_obs
+
+    def _obs(self, obs, extra_obs):
+        '''
+        Also override _obs function so that it respects the relevant fields
+        :param obs:
+        :param extra_obs:
+        :return:
+        '''
+        #print("_O1")
+        obs = {
+            'image': obs['pov'],
+            'reward': np.float32(0.0), # reward will be calculated later
+            'is_first': obs['is_first'],
+            'is_last': obs['is_last'],
+            'is_terminal': obs['is_terminal'],
+            'doorvis': obs['doorvis'],
+            'newroom': obs['newroom'],
+            'doordir': obs['door_dir']
+        }
+
+        extra_obs = {
+            'distanceleft': extra_obs['distanceleft'],
+            'initial_distance': extra_obs['initial_distance'],
+            'best_path_length': extra_obs['best_path_length'],
+            'target_reached': extra_obs['target_reached'],
+            'cur_pos': extra_obs['cur_pos']
+        }
+
+        #print("obs: ", obs)
+        for key, value in obs.items():
+            space = self._obs_space[key]
+            if not isinstance(value, np.ndarray):
+                value = np.array(value)
+            #print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
+            assert value in space, (key, value, value.dtype, value.shape, space)
+        #print("obs: ", obs)
+        #print("_O2")
+        return obs, extra_obs
+
+    # Determines if we have little enough left to call it an achieved goal
+    def have_we_arrived(self, epsilon = 0.0, eval = False):
+        return (self.current_path_length <= epsilon)

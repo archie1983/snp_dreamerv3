@@ -10,7 +10,8 @@ class Indoors(embodied.Wrapper):
         'roomcentre': 'indoors_flat:Roomcentre',
         'door': 'indoors_flat:Door',
         'perimeter': 'indoors_flat:Perimeter',
-        'straightpath': 'indoors_flat:StraightPath'
+        'straightpath': 'indoors_flat:StraightPath',
+        'directeddoor': 'indoors_flat:DirectedDoor'
     }[task].split(':')
     module = importlib.import_module(f'.{module}', __package__)
     cls = getattr(module, cls)
