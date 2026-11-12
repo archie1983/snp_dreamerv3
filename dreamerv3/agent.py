@@ -37,7 +37,10 @@ class Agent(embodied.jax.Agent):
     self.use_doorvis_and_newroom_heads = self.config.use_doorvis_and_newroom_heads
     print("AE: obs_space: ", obs_space)
     print("AE: act_space: ", act_space)
-    exclude = ('is_first', 'is_last', 'is_terminal', 'reward', 'doorvis', 'newroom')
+    if self.use_doorvis_and_newroom_heads:
+      exclude = ('is_first', 'is_last', 'is_terminal', 'reward')
+    else:
+      exclude = ('is_first', 'is_last', 'is_terminal', 'reward', 'doorvis', 'newroom')
     enc_space = {k: v for k, v in obs_space.items() if k not in exclude}
     dec_space = {k: v for k, v in obs_space.items() if k not in exclude}
     print("AE: config.enc.typ, enc_space, config.enc[config.enc.typ]: ", config.enc.typ, enc_space, config.enc[config.enc.typ])
