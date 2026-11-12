@@ -313,7 +313,8 @@ class DistanceReductionReward:
         self.best_distance_so_far = None
 
     def __call__(self, obs, extra_obs, action):
-        #print("D1")
+        #print("D1: ", extra_obs)
+        #print("D1: ", obs)
         reward = 0.0
         #distance_left = obs['distance_left']
         distance_left = extra_obs['distanceleft']
@@ -743,7 +744,7 @@ class AI2ThorBase(embodied.Env):
 
     @property
     def obs_space(self):
-        print("OSPACE1")
+        #print("OSPACE1")
         return {
             'image': elements.Space(np.uint8, self._size + (3,)),
             'reward': elements.Space(np.float32),
@@ -890,7 +891,7 @@ class AI2ThorBase(embodied.Env):
     # Returns current observation of the state (image mostly)
     ##
     def current_ai2thor_observation(self):
-        print("O1")
+        #print("O1")
         event = self.controller.last_event
         self._current_image = event.cv2img
 
@@ -1816,7 +1817,7 @@ class DirectedDoorFinder(AI2ThorBase):
 
     @property
     def obs_space(self):
-        print("OSPACE1.child")
+        #print("OSPACE1.child")
         return {
             'image': elements.Space(np.uint8, self._size + (3,)),
             'reward': elements.Space(np.float32),
@@ -1828,12 +1829,12 @@ class DirectedDoorFinder(AI2ThorBase):
             'doordir': elements.Space(np.float32),
         }
 
-    def _reset(self):
-        super._reset()
-        return self.current_ai2thor_observation()
+#    def _reset(self):
+#        super()._reset()
+#        return self.current_ai2thor_observation()
 
     def current_ai2thor_observation(self):
-        print("O1.child")
+        #print("O1.child")
         '''
         Override the current observation method to add additional extra_obs fields
         :return:
@@ -1859,9 +1860,7 @@ class DirectedDoorFinder(AI2ThorBase):
         else:
             door_dir = 0.0 # door is out of sight
 
-        # We want to now calculate the angle between our direction and the door here. Then we will pass that in the
-        # extra_obs and later pass it back into the obs to train on
-        orig_obs['doordir'] = door_dir
+        orig_obs['doordir'] = np.float32(door_dir)
 
         #traceback.print_stack()
         #print("extra_obs O2: ", extra_obs)
@@ -1884,14 +1883,13 @@ class DirectedDoorFinder(AI2ThorBase):
             'is_terminal': obs['is_terminal'],
             'doorvis': obs['doorvis'],
             'newroom': obs['newroom'],
-            'doordir': obs['door_dir']
+            'doordir': obs['doordir']
         }
 
         extra_obs = {
             'distanceleft': extra_obs['distanceleft'],
             'initial_distance': extra_obs['initial_distance'],
             'best_path_length': extra_obs['best_path_length'],
-            'target_reached': extra_obs['target_reached'],
             'cur_pos': extra_obs['cur_pos']
         }
 
