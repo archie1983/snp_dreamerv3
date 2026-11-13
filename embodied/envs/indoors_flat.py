@@ -1172,7 +1172,9 @@ class AI2ThorBase(embodied.Env):
         ## All we need is a set of random positions and we get them like this:
         # params for the random teleportation part
         seed = 1983
-        num_stops = 20
+        num_stops = 100
+        # if our selected location (x, y, rotation) is not suitable (e.g. door is not visible), then we will try re-planning this many times
+        max_attempts_for_placing = 50
         num_rotates = 4
         sep = 1.0
         v_angles = [30]
@@ -1276,7 +1278,7 @@ class AI2ThorBase(embodied.Env):
             except ValueError as e:
                 # If the path could not be planned, then drop it and carry on with the next one
                 #print(f"ERROR: {e}")
-                if placement_attempts <= 10:
+                if placement_attempts <= max_attempts_for_placing:
                     print('.', sep='', end='')
                     continue
                 else:
