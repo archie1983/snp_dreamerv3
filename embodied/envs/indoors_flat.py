@@ -7,7 +7,8 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping, e
                                               room_this_point_belongs_to, get_rooms_ground_truth,
                                               get_all_objects_of_type, is_point_inside_room_ground_truth,
                                               create_full_grid_from_room_layout, add_buffer_to_unreachable,
-                                              RoomType, BoundaryCalculations, angle_to_turn_to_face_p2_from_p1)
+                                              RoomType, BoundaryCalculations, angle_to_turn_to_face_p2_from_p1,
+                                              is_named_object_visible)
 
 import thortils as tt
 from thortils import launch_controller
@@ -1477,12 +1478,14 @@ class DoorFinder(AI2ThorBase):
         #print("CD1")
         current_target_point = None
         try:
-            current_target_point, all_door_targets = self.nu.find_door_target(place_with_rtn,
+            door_target_res = self.nu.find_door_target(place_with_rtn,
                                                             self.rooms_in_habitat,
                                                             self.reachable_positions,
                                                             self.habitat,
                                                             self.controller, close_enough=self.plan_close_enough,
-                                                            step=self.grid_size, extend_path=True)
+                                                            step=self.grid_size, extend_path=True, visible_only=False, debug=False)
+            current_target_point = door_target_res['target_point']
+            all_door_targets = door_target_res['all_targets']
 
             # t1 = time.time()
             # pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
@@ -1760,9 +1763,11 @@ class DirectedDoorFinder(AI2ThorBase):
         self._obs_space = self.obs_space
         self.angle_from_door = None
         self.door_pos = None
+        self.door_name = None
 
     def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
         self.door_pos = None
+        self.door_name = None
         target_point = self.choose_door_target(place_with_rtn)
         self.angle_from_door = None
         return target_point
@@ -1776,12 +1781,16 @@ class DirectedDoorFinder(AI2ThorBase):
         #print("CD1")
         current_target_point = None
         try:
-            current_target_point, _, self.door_pos = self.nu.find_door_target(place_with_rtn,
+            door_target_res = self.nu.find_door_target(place_with_rtn,
                                                             self.rooms_in_habitat,
                                                             self.reachable_positions,
                                                             self.habitat,
                                                             self.controller, close_enough=self.plan_close_enough,
-                                                            step=self.grid_size, extend_path=True, visible_only=True)
+                                                            step=self.grid_size, extend_path=True, visible_only=True, debug=False)
+            current_target_point = door_target_res['target_point']
+            #all_door_targets = door_target_res['all_targets']
+            self.door_pos = door_target_res['door_pos']
+            self.door_name = door_target_res['door_name']
 
             # t1 = time.time()
             # pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
@@ -1850,14 +1859,17 @@ class DirectedDoorFinder(AI2ThorBase):
         cur_yaw = cur_pos[1][1]
         #target_pos_2d = (self.current_target_point.x, self.current_target_point.y)
 
+        # The door for which we have self.door_pos, may not be visible (because the view is blocked)
+        # if that's the case, then we should use door_dir = 0.0.
+        door_visible = is_named_object_visible(self.controller, self.door_name)
         self.angle_from_door = angle_to_turn_to_face_p2_from_p1(cur_pos_2d, self.door_pos, cur_yaw)
         # now we will create a door direction indicator based on the angle
         door_dir = 0.0
-        if self.angle_from_door >= -45.0 and self.angle_from_door < -10.0:
+        if door_visible and self.angle_from_door >= -45.0 and self.angle_from_door < -10.0:
             door_dir = 1.0 # if the door is on the left
-        elif self.angle_from_door >= -10.0 and self.angle_from_door <= 10.0:
+        elif door_visible and self.angle_from_door >= -10.0 and self.angle_from_door <= 10.0:
             door_dir = 2.0 # door is more or less in the center
-        elif self.angle_from_door > 10.0 and self.angle_from_door <= 45.0:
+        elif door_visible and self.angle_from_door > 10.0 and self.angle_from_door <= 45.0:
             door_dir = 3.0 # door is on the right
         else:
             door_dir = 0.0 # door is out of sight
